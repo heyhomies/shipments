@@ -20,7 +20,7 @@ import anthropic
 import pypdfium2 as pdfium
 from PIL import Image
 
-MODEL = "claude-opus-4-8"
+MODEL = "claude-sonnet-4-6"
 
 # Strukturiertes JSON-Schema, das wir vom Modell verlangen.
 EXTRACTION_SCHEMA = {
@@ -247,7 +247,7 @@ def _create_with_schema(client: "anthropic.Anthropic", content: List[dict]):
         max_tokens=32000,
         thinking={"type": "adaptive"},
         output_config={
-            "effort": "high",
+            "effort": "medium",
             "format": {"type": "json_schema", "schema": EXTRACTION_SCHEMA},
         },
         system=SYSTEM_PROMPT,
