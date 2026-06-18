@@ -237,10 +237,14 @@ def extract_shipment(images: List[Image.Image], api_key: str) -> Shipment:
 
 
 def _create_with_schema(client: "anthropic.Anthropic", content: List[dict]):
-    """Messages-Aufruf mit erzwungenem JSON-Schema (structured outputs)."""
-    return client.messages.create(
+    """Messages-Aufruf mit erzwungenem JSON-Schema (structured outputs).
+
+    Wird gestreamt, weil das Denken (adaptive thinking) auf das max_tokens-Budget
+    angerechnet wird; bei vielen Artikeln muss genug Platz für das JSON bleiben.
+    """
+    with client.messages.stream(
         model=MODEL,
-        max_tokens=16000,
+        max_tokens=32000,
         thinking={"type": "adaptive"},
         output_config={
             "effort": "high",
@@ -248,14 +252,36 @@ def _create_with_schema(client: "anthropic.Anthropic", content: List[dict]):
         },
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": content}],
-    )
+    ) as stream:
+        return stream.get_final_message()
 
 
 def _parse_response(message) -> Shipment:
+    stop = getattr(message, "stop_reason", None)
+    if stop == "max_tokens":
+        raise RuntimeError(
+            "Die Antwort war zu lang und wurde abgeschnitten. Bitte weniger Seiten "
+            "auf einmal hochladen (z.B. in zwei Durchgängen)."
+        )
+    if stop == "refusal":
+        raise RuntimeError("Die Auswertung wurde vom Modell aus Sicherheitsgründen abgelehnt.")
+
     text = next((b.text for b in message.content if b.type == "text"), None)
-    if not text:
+    if not text or not text.strip():
         raise RuntimeError("Leere Antwort vom Modell erhalten.")
-    data = json.loads(text)
+    text = text.strip()
+    # Defensiv: evtl. vorhandene Code-Fences entfernen.
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1]
+        if text.endswith("```"):
+            text = text[: text.rfind("```")]
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"Antwort konnte nicht als JSON gelesen werden ({e}). "
+            "Bitte erneut versuchen oder weniger Seiten auf einmal hochladen."
+        ) from e
     items = [
         Item(
             artikelnr=str(it.get("artikelnr", "")).strip(),
