@@ -28,7 +28,7 @@ def check_password() -> bool:
         return True  # kein Schutz konfiguriert
     if st.session_state.get("auth_ok"):
         return True
-    st.title("📦 Sendungen erstellen")
+    st.title("📦 Amazon-Sendungen erstellen")
     entered = st.text_input("Passwort", type="password")
     if entered:
         if entered == pw:
@@ -452,7 +452,7 @@ def main() -> None:
     if not check_password():
         return
 
-    st.title("📦 Sendungen erstellen")
+    st.title("📦 Amazon-Sendungen erstellen")
     st.caption("Amazon FBA – Artikelliste & Packliste aus Lager-Scans automatisch erzeugen.")
 
     api_key = get_api_key()
