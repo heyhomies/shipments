@@ -123,6 +123,7 @@ Regeln:
 - Wenn eine Artikelzeile nur eine Kartonnummer und keine extra Stückzahl hat, nimm die gedruckte Menge als Stückzahl dieses Kartons.
 - Erfinde nichts. Wenn etwas unleserlich ist, lass das Feld weg bzw. den Eintrag aus, statt zu raten.
 - Maße: oft Reihenfolge L x B x H. Wenn unklar, trage die Zahlen in der abgedruckten Reihenfolge in laenge/breite/hoehe ein.
+- Palettentabelle: Lies "von" und "bis" der Kartonnummern exakt ab. Die Zahlen stehen in eingekreisten Nummern; lies sie Ziffer für Ziffer (z.B. (1)(1)(0) = 110, nicht 122 oder 12). Die "bis"-Nummer einer Palette ist immer kleiner als die "von"-Nummer der nächsten.
 """
 
 
@@ -213,6 +214,48 @@ def _image_blocks(images: List[Image.Image]) -> List[dict]:
             }
         )
     return blocks
+
+
+def validate_shipment(s: Shipment) -> List[str]:
+    """Gibt eine Liste von Warnungen zurück (leer = alles ok)."""
+    warnings: List[str] = []
+
+    # 1. Paletten-Kontinuität
+    pallets = sorted(s.pallets, key=lambda p: p.nummer)
+    for i, p in enumerate(pallets):
+        if p.karton_von > p.karton_bis:
+            warnings.append(
+                f"Palette {p.nummer}: 'von' ({p.karton_von}) > 'bis' ({p.karton_bis}) – vermutlich Erkennungsfehler."
+            )
+        if i > 0:
+            prev = pallets[i - 1]
+            expected_von = prev.karton_bis + 1
+            if p.karton_von != expected_von:
+                warnings.append(
+                    f"Palette {p.nummer} beginnt bei Karton {p.karton_von}, "
+                    f"erwartet {expected_von} (Palette {prev.nummer} endet bei {prev.karton_bis})."
+                )
+
+    # 2. Artikel-Mengen: Summe Karton-Stückzahlen == gedruckte Menge
+    for it in s.items:
+        if not it.kartons:
+            continue
+        distributed = sum(k.stueck for k in it.kartons)
+        if distributed != it.menge:
+            warnings.append(
+                f"Artikel {it.artikelnr}: Menge {it.menge} ≠ Summe Kartonzuordnungen {distributed}."
+            )
+
+    # 3. Kartonliste vollständig: alle referenzierten Nummern haben Maße/Gewicht
+    box_nums = {b.nummer for b in s.boxes}
+    referenced = {k.nummer for it in s.items for k in it.kartons}
+    missing = sorted(referenced - box_nums)
+    if missing:
+        warnings.append(
+            "Keine Maße/Gewicht für Kartonnummer(n): " + ", ".join(str(n) for n in missing) + "."
+        )
+
+    return warnings
 
 
 def extract_shipment(images: List[Image.Image], api_key: str) -> Shipment:

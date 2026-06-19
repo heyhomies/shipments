@@ -188,6 +188,8 @@ def step_manifest(api_key: str) -> None:
             f"Erkannt: {len(shipment.items)} Artikel, {len(shipment.boxes)} Kartons, "
             f"{len(shipment.pallets)} Paletten."
         )
+        for warn in vision_mod.validate_shipment(shipment):
+            st.warning(f"⚠️ Logik-Check: {warn}")
 
     if not st.session_state.get("extracted"):
         return
