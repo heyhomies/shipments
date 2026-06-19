@@ -2,9 +2,9 @@
 
 Kleine Streamlit-App für den Amazon-FBA-Workflow „An Amazon senden":
 
-1. **Manifest erstellen** – Lade die **gescannten Seiten des Lager-Lieferscheins**
+1. **Artikelliste erstellen** – Lade die **gescannten Seiten des Lager-Lieferscheins**
    (JPG / PNG / PDF) hoch. Claude Vision liest Artikelnummern, Mengen und die
-   **handschriftliche Kartonzuordnung** aus und erzeugt die Amazon-Manifest-Upload-Datei
+   **handschriftliche Kartonzuordnung** aus und erzeugt die Amazon-Artikelliste-Upload-Datei
    (`.xlsx`) für Seller Central.
 2. **Packliste befüllen** – Nachdem Amazon die Sendung erstellt hat, lädst du die
    generierte, **sendungsspezifische Packliste** (`.xlsx`) herunter und hier hoch.
@@ -55,7 +55,7 @@ app/
 │   └── ManifestFileUpload_Template_MPL.xlsx   # offizielle Amazon-Vorlage
 ├── src/
 │   ├── vision.py          # Claude-Vision-Extraktion der Scans
-│   ├── manifest.py        # Manifest-Upload-Datei erzeugen
+│   ├── manifest.py        # Artikelliste-Upload-Datei erzeugen
 │   └── packliste.py       # Amazon-Packliste befüllen
 └── .streamlit/
     ├── config.toml

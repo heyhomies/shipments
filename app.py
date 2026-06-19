@@ -1,6 +1,6 @@
 """Amazon FBA – Sendungen erstellen.
 
-Schritt 1: Aus gescannten Lager-Packlisten die Amazon Manifest-Upload-Datei erzeugen.
+Schritt 1: Aus gescannten Lager-Packlisten die Amazon Artikelliste-Upload-Datei erzeugen.
 Schritt 2: Die von Amazon generierte, sendungsspezifische Packliste automatisch befüllen.
 """
 
@@ -159,7 +159,7 @@ def build_shipment_from_state() -> Shipment:
 # Schritt 1: Manifest
 # --------------------------------------------------------------------------- #
 def step_manifest(api_key: str) -> None:
-    st.header("Schritt 1 · Manifest aus Lager-Scans erstellen")
+    st.header("Schritt 1 · Artikelliste aus Lager-Scans erstellen")
     st.caption(
         "Lade die gescannten Seiten des Lager-Lieferscheins hoch (JPG, PNG oder PDF). "
         "Die App liest Artikelnummern, Mengen und die handschriftliche Kartonzuordnung aus."
@@ -199,7 +199,7 @@ def step_manifest(api_key: str) -> None:
     if st.session_state.get("belegnummer"):
         st.caption(f"Belegnummer: **{st.session_state['belegnummer']}**")
 
-    st.markdown("**Artikel (für das Manifest)** – Artikelnr. und Menge bei Bedarf korrigieren:")
+    st.markdown("**Artikel (für die Artikelliste)** – Artikelnr. und Menge bei Bedarf korrigieren:")
     st.session_state["items_df"] = st.data_editor(
         st.session_state["items_df"],
         num_rows="dynamic",
@@ -226,7 +226,7 @@ def step_manifest(api_key: str) -> None:
             st.dataframe(st.session_state["pallets_df"], use_container_width=True)
 
     st.divider()
-    st.subheader("Manifest-Datei erzeugen")
+    st.subheader("Artikelliste erzeugen")
     col1, col2, col3 = st.columns(3)
     with col1:
         suffix = st.text_input("SKU-Suffix", value="-FBA", help="Wird an die Artikelnr. angehängt, z.B. -FBA.")
@@ -238,20 +238,20 @@ def step_manifest(api_key: str) -> None:
     shipment = build_shipment_from_state()
     rows = manifest_mod.build_manifest_rows(shipment.items, sku_suffix=suffix)
 
-    st.caption(f"{len(rows)} Manifest-Zeilen · Gesamtmenge: {sum(r.quantity for r in rows)}")
+    st.caption(f"{len(rows)} Zeilen · Gesamtmenge: {sum(r.quantity for r in rows)}")
     preview = pd.DataFrame([{"Merchant SKU": r.merchant_sku, "Quantity": r.quantity} for r in rows])
     st.dataframe(preview, use_container_width=True, height=240)
 
     try:
         xlsx = manifest_mod.build_manifest_xlsx(rows, default_prep_owner=prep, default_labeling_owner=label)
     except Exception as e:  # noqa: BLE001
-        st.error(f"Manifest konnte nicht erstellt werden: {e}")
+        st.error(f"Artikelliste konnte nicht erstellt werden: {e}")
         return
 
     beleg = st.session_state.get("belegnummer") or dt.date.today().isoformat()
     fname = f"ManifestFileUpload_{_safe(beleg)}.xlsx"
     st.download_button(
-        "⬇️ Manifest-Datei herunterladen",
+        "⬇️ Artikelliste herunterladen",
         data=xlsx,
         file_name=fname,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -453,13 +453,13 @@ def main() -> None:
         return
 
     st.title("📦 Sendungen erstellen")
-    st.caption("Amazon FBA – Manifest & Packliste aus Lager-Scans automatisch erzeugen.")
+    st.caption("Amazon FBA – Artikelliste & Packliste aus Lager-Scans automatisch erzeugen.")
 
     api_key = get_api_key()
     if not api_key:
         return
 
-    tab1, tab2 = st.tabs(["1 · Manifest erstellen", "2 · Packliste befüllen"])
+    tab1, tab2 = st.tabs(["1 · Artikelliste erstellen", "2 · Packliste befüllen"])
     with tab1:
         step_manifest(api_key)
     with tab2:
