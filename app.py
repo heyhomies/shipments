@@ -7,9 +7,12 @@ Schritt 2: Die von Amazon generierte, sendungsspezifische Packliste automatisch 
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+LOGO = Path(__file__).parent / "assets" / "logo.png"
 
 from src import manifest as manifest_mod
 from src import packliste as pack_mod
@@ -28,6 +31,7 @@ def check_password() -> bool:
         return True  # kein Schutz konfiguriert
     if st.session_state.get("auth_ok"):
         return True
+    st.image(str(LOGO), width=220)
     st.title("📦 Amazon-Sendungen erstellen")
     entered = st.text_input("Passwort", type="password")
     if entered:
@@ -452,6 +456,7 @@ def main() -> None:
     if not check_password():
         return
 
+    st.image(str(LOGO), width=220)
     st.title("📦 Amazon-Sendungen erstellen")
     st.caption("Amazon FBA – Artikelliste & Packliste aus Lager-Scans automatisch erzeugen.")
 
