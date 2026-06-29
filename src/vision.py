@@ -287,10 +287,8 @@ def _create_with_schema(client: "anthropic.Anthropic", content: List[dict]):
     """
     with client.messages.stream(
         model=MODEL,
-        max_tokens=32000,
-        thinking={"type": "adaptive"},
+        max_tokens=8000,
         output_config={
-            "effort": "medium",
             "format": {"type": "json_schema", "schema": EXTRACTION_SCHEMA},
         },
         system=SYSTEM_PROMPT,
