@@ -188,11 +188,13 @@ def step_manifest(api_key: str) -> None:
                 st.error(f"Auswertung fehlgeschlagen: {e}")
                 return
         shipment_to_state(shipment)
+        warnings = vision_mod.validate_shipment(shipment)
+        st.session_state["logik_warnings"] = warnings
         st.success(
             f"Erkannt: {len(shipment.items)} Artikel, {len(shipment.boxes)} Kartons, "
             f"{len(shipment.pallets)} Paletten."
         )
-        for warn in vision_mod.validate_shipment(shipment):
+        for warn in warnings:
             st.warning(f"⚠️ Logik-Check: {warn}")
 
     if not st.session_state.get("extracted"):
@@ -211,7 +213,19 @@ def step_manifest(api_key: str) -> None:
         key="ed_items",
     )
 
-    with st.expander("Kartonzuordnung (für Schritt 2) prüfen"):
+    _warnings = st.session_state.get("logik_warnings", [])
+    _mismatch_articles = [
+        w.split(":")[1].strip().split(" ")[0]
+        for w in _warnings if "Menge" in w and "≠" in w
+    ]
+    _karton_expanded = bool(_mismatch_articles)
+    with st.expander("Kartonzuordnung (für Schritt 2) prüfen", expanded=_karton_expanded):
+        if _mismatch_articles:
+            st.info(
+                f"⚠️ Mengen-Abweichung bei: **{', '.join(_mismatch_articles)}** — "
+                "bitte Kartonzuordnungen unten prüfen und ggf. fehlende Zeilen über die letzte Tabellenzeile ergänzen "
+                "(Artikelnr. + Kartonnummer + Stück eintragen). Bestehende Einträge können direkt bearbeitet werden."
+            )
         st.session_state["karton_df"] = st.data_editor(
             st.session_state["karton_df"],
             num_rows="dynamic",

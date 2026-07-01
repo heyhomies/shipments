@@ -120,6 +120,7 @@ Regeln:
 - Lies die gedruckte Artikelnummer EXAKT ab, ohne Zusätze wie "-FBA".
 - Deutsche Dezimalzahlen nutzen Komma; gib Zahlen als echte Zahlen mit Punkt zurück (z.B. 27,5 -> 27.5).
 - "je X Stk" bei mehreren Kartonnummern heißt: X Stück in JEDEM genannten Karton (ein Eintrag pro Karton).
+- BEREICHS-NOTATION: "K67-K78 à 1" oder "K67-K78 je 1" oder "K67-78 à 1" bedeutet: Kartons 67 BIS 78 (einschließlich), je 1 Stück — das ergibt 12 separate Einträge: {nummer:67,stueck:1}, {nummer:68,stueck:1}, …, {nummer:78,stueck:1}. Das "à" ist das französische Zeichen für "je/each". Zähle den Bereich immer vollständig auf.
 - Wenn eine Artikelzeile nur eine Kartonnummer und keine extra Stückzahl hat, nimm die gedruckte Menge als Stückzahl dieses Kartons.
 - Erfinde nichts. Wenn etwas unleserlich ist, lass das Feld weg bzw. den Eintrag aus, statt zu raten.
 - Maße: oft Reihenfolge L x B x H. Wenn unklar, trage die Zahlen in der abgedruckten Reihenfolge in laenge/breite/hoehe ein.
