@@ -258,13 +258,31 @@ def validate_shipment(s: Shipment) -> List[str]:
     return warnings
 
 
+_MAX_TOKENS = 16000
+_PAGES_PER_BATCH = 5
+
+
 def extract_shipment(images: List[Image.Image], api_key: str) -> Shipment:
-    """Schickt alle Seiten an Claude und gibt die strukturierten Sendungsdaten zurück."""
+    """Schickt alle Seiten an Claude und gibt die strukturierten Sendungsdaten zurück.
+
+    Bei großen Dokumenten (> _PAGES_PER_BATCH Seiten) oder wenn die Antwort trotzdem
+    zu lang wird, wird automatisch in Batches aufgeteilt und die Ergebnisse zusammengeführt.
+    """
     if not images:
         raise ValueError("Keine Seiten zum Auswerten übergeben.")
 
     client = anthropic.Anthropic(api_key=api_key)
 
+    # Kleine Dokumente: alles in einem Aufruf
+    if len(images) <= _PAGES_PER_BATCH:
+        return _extract_batch(client, images)
+
+    # Große Dokumente: automatisch in Batches aufteilen
+    return _extract_batched(client, images)
+
+
+def _extract_batch(client, images: List[Image.Image]) -> Shipment:
+    """Verarbeitet eine Gruppe von Seiten in einem einzelnen API-Aufruf."""
     content = _image_blocks(images) + [
         {
             "type": "text",
@@ -274,20 +292,45 @@ def extract_shipment(images: List[Image.Image], api_key: str) -> Shipment:
             ),
         }
     ]
-
     message = _create_with_schema(client, content)
     return _parse_response(message)
 
 
-def _create_with_schema(client: "anthropic.Anthropic", content: List[dict]):
-    """Messages-Aufruf mit erzwungenem JSON-Schema (structured outputs).
+def _extract_batched(client, images: List[Image.Image]) -> Shipment:
+    """Teilt das Dokument in Batches auf und führt die Ergebnisse zusammen."""
+    batches = [images[i:i + _PAGES_PER_BATCH] for i in range(0, len(images), _PAGES_PER_BATCH)]
+    partial_shipments = []
+    for batch in batches:
+        partial_shipments.append(_extract_batch(client, batch))
+    return _merge_shipments(partial_shipments)
 
-    Wird gestreamt, weil das Denken (adaptive thinking) auf das max_tokens-Budget
-    angerechnet wird; bei vielen Artikeln muss genug Platz für das JSON bleiben.
-    """
+
+def _merge_shipments(shipments: List["Shipment"]) -> "Shipment":
+    """Führt mehrere Teil-Ergebnisse zu einer vollständigen Sendung zusammen."""
+    belegnummer = next((s.belegnummer for s in shipments if s.belegnummer), "")
+    items = [item for s in shipments for item in s.items]
+    # Kartons und Paletten: nach Nummer deduplizieren (letzter Eintrag gewinnt)
+    boxes_by_nr: dict = {}
+    for s in shipments:
+        for b in s.boxes:
+            boxes_by_nr[b.nummer] = b
+    pallets_by_nr: dict = {}
+    for s in shipments:
+        for p in s.pallets:
+            pallets_by_nr[p.nummer] = p
+    return Shipment(
+        belegnummer=belegnummer,
+        items=items,
+        boxes=list(boxes_by_nr.values()),
+        pallets=list(pallets_by_nr.values()),
+    )
+
+
+def _create_with_schema(client: "anthropic.Anthropic", content: List[dict]):
+    """Messages-Aufruf mit erzwungenem JSON-Schema (structured outputs)."""
     with client.messages.stream(
         model=MODEL,
-        max_tokens=8000,
+        max_tokens=_MAX_TOKENS,
         output_config={
             "format": {"type": "json_schema", "schema": EXTRACTION_SCHEMA},
         },
@@ -297,12 +340,12 @@ def _create_with_schema(client: "anthropic.Anthropic", content: List[dict]):
         return stream.get_final_message()
 
 
-def _parse_response(message) -> Shipment:
+def _parse_response(message) -> "Shipment":
     stop = getattr(message, "stop_reason", None)
     if stop == "max_tokens":
         raise RuntimeError(
-            "Die Antwort war zu lang und wurde abgeschnitten. Bitte weniger Seiten "
-            "auf einmal hochladen (z.B. in zwei Durchgängen)."
+            "Die Antwort war zu lang und wurde abgeschnitten. "
+            "Bitte versuche es erneut — bei sehr großen Dokumenten werden die Seiten automatisch aufgeteilt."
         )
     if stop == "refusal":
         raise RuntimeError("Die Auswertung wurde vom Modell aus Sicherheitsgründen abgelehnt.")
@@ -311,7 +354,6 @@ def _parse_response(message) -> Shipment:
     if not text or not text.strip():
         raise RuntimeError("Leere Antwort vom Modell erhalten.")
     text = text.strip()
-    # Defensiv: evtl. vorhandene Code-Fences entfernen.
     if text.startswith("```"):
         text = text.split("\n", 1)[-1]
         if text.endswith("```"):
@@ -320,8 +362,7 @@ def _parse_response(message) -> Shipment:
         data = json.loads(text)
     except json.JSONDecodeError as e:
         raise RuntimeError(
-            f"Antwort konnte nicht als JSON gelesen werden ({e}). "
-            "Bitte erneut versuchen oder weniger Seiten auf einmal hochladen."
+            f"Antwort konnte nicht als JSON gelesen werden ({e}). Bitte erneut versuchen."
         ) from e
     items = [
         Item(
